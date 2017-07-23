@@ -13,8 +13,6 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
-//#pragma warning disable 0169, 0414
-
 namespace AppTime
 {
     public partial class Form1 : Form
