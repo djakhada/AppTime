@@ -30,6 +30,7 @@ namespace AppTime
         bool settingsPanelExtended;
         bool showPaths;
         bool minimizeToTray;
+        RegistryKey rkApp = Registry.CurrentUser.OpenSubKey("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", true);
 
         public Form1()
         {
@@ -55,6 +56,9 @@ namespace AppTime
                 settingsPanelExtended = true;
             }
             else this.Size = new Size(601, 499);settingsPanelExtended = false;
+
+            if (rkApp.GetValue("sinnzrAppTime") == null) checkBox3.Checked = false;
+            else checkBox3.Checked = true;
 
             loadSettings();
             timeTrackTimer.Start();
@@ -367,6 +371,12 @@ namespace AppTime
             minimizeToTray = checkBox2.Checked;
         }
 
+        private void checkBox3_CheckedChanged(object sender, EventArgs e)
+        {
+            if (checkBox3.Checked) rkApp.SetValue("sinnzrAppTime", Application.ExecutablePath);
+            else rkApp.DeleteValue("sinnzrAppTime", false);
+        }
+
         private void Form1_FormClosing(object sender, FormClosingEventArgs e)
         {
             if (dbConnected)
@@ -403,6 +413,8 @@ namespace AppTime
             this.Show();
             this.WindowState = FormWindowState.Normal;
         }
+
+        
     }
 
     class TrackedProgram
