@@ -35,12 +35,13 @@ namespace AppTime
         public Form1()
         {
             InitializeComponent();
-            
+
             //Registry
             using (RegistryKey Key = Registry.CurrentUser.OpenSubKey(@"SOFTWARE\sinnzrAppTime\"))
                 if (Key != null)
                 {
                     dbLoc = (string)Key.GetValue("databaseLocation");
+                    
                     if (File.Exists(dbLoc))
                     {
                         dbExist = true;
@@ -52,10 +53,10 @@ namespace AppTime
             if (!dbExist)
             {
                 panel2.Enabled = true;
-                this.Size = new Size(752, 499); //with sidepanel
+                this.Size = new Size(782, 499); //with sidepanel
                 settingsPanelExtended = true;
             }
-            else this.Size = new Size(601, 499);settingsPanelExtended = false;
+            else this.Size = new Size(628, 499);settingsPanelExtended = false;
 
             if (rkApp.GetValue("sinnzrAppTime") == null) checkBox3.Checked = false;
             else checkBox3.Checked = true;
@@ -63,15 +64,7 @@ namespace AppTime
             loadSettings();
             timeTrackTimer.Start();
             automaticUpdateTimer.Start();
-        }
-
-        private void ProgramDeleteButton_Click(object sender, EventArgs e, int id)
-        {
-            DialogResult dialogResult = MessageBox.Show("Do you really want to remove this program?", "Delete Program", MessageBoxButtons.YesNo);
-            if (dialogResult == DialogResult.Yes)
-            {
-                deleteProgram(id);
-            }
+            if (!showPaths) dataGridView1.Columns[5].Visible = false;
         }
 
         private void button1_Click(object sender, EventArgs e)
@@ -128,12 +121,12 @@ namespace AppTime
             if (settingsPanelExtended)
             {
                 panel2.Enabled = false;
-                this.Size = new Size(601, 499);
+                this.Size = new Size(628, 499);
                 settingsPanelExtended = false;
             }
             else {
                 panel2.Enabled = true;
-                this.Size = new Size(752, 499);
+                this.Size = new Size(782, 499);
                 settingsPanelExtended = true;
             }
         }
@@ -191,58 +184,35 @@ namespace AppTime
 
         private void updateLabel()
         {
-            for (int i = 0; i < numPrograms; i++)
-            {
-                panel1.Controls.RemoveByKey("programLabelID" + i);
-                panel1.Controls.RemoveByKey("programDeleteButtonID" + i);
-            }
+            dataGridView1.AllowUserToAddRows = true;
+            dataGridView1.Rows.Clear();
             numPrograms = 0;
             string lastTimeRun = "Never";
             string Name;
             foreach (TrackedProgram item in Programs)
             {
                 int id = numPrograms;
-                Button programDeleteButton = new Button();
-                programDeleteButton.Size = new Size(96, 37);
-                programDeleteButton.Text = "Delete Program";
-                programDeleteButton.Location = new Point(430, (id * 100) + 46);
-                programDeleteButton.Name = "programDeleteButtonID" + id;
-                programDeleteButton.Click += new EventHandler((sender, e) => ProgramDeleteButton_Click(sender, e, id));
 
-                Label programLabel = new Label();
-                programLabel.Location = new Point(0, (id * 100) + 12);
-                programLabel.Font = new Font(programLabel.Font.FontFamily, 10);
-                programLabel.AutoSize = true;
-                programLabel.Name = "programLabelID" + id;
-
-                string s = "";
-                string Path = "";
                 var days = TimeSpan.FromMinutes(item.runtime).Days;
                 var hours = TimeSpan.FromMinutes(item.runtime).Hours;
                 var minutes = TimeSpan.FromMinutes(item.runtime).Minutes;
                 if (item.lastTimeRun != DateTime.MinValue) lastTimeRun = item.lastTimeRun.ToString("F");
                 if (processIsRunning(item.Path)) Name = item.Name + " (Currently running)";
                 else Name = item.Name;
-                if (showPaths == true) Path = "\nPath: " + item.Path;
-                s =
-                    s +
-                    "Name: " +
-                    Name + "    [ID: " + numPrograms + "]" +
-                    "\nActive run time: " +
-                    String.Format("{0} Days, {1} Hours, {2} Minutes", days, hours, minutes) +
-                    "\nLast time run: " +
-                    lastTimeRun +
-                    "\nTime added: " +
-                    item.timeAdded.ToString("F") + Path;
 
-                programLabel.Text = s;
-                panel1.Controls.Add(programLabel);
-                panel1.Controls.Add(programDeleteButton);
-                programDeleteButton.BringToFront();
+                DataGridViewRow row = (DataGridViewRow)dataGridView1.Rows[0].Clone();
+                row.Cells[0].Value = id;
+                row.Cells[1].Value = Name;
+                row.Cells[2].Value = String.Format("{0} Days, {1} Hours, {2} Minutes", days, hours, minutes);
+                row.Cells[3].Value = lastTimeRun;
+                row.Cells[4].Value = item.timeAdded.ToString("F");
+                if(showPaths)row.Cells[5].Value = item.Path;
+                dataGridView1.Rows.Add(row);
 
                 numPrograms++;
             }
             label1.Text = "Current number of tracked programs: " + numPrograms;
+            dataGridView1.AllowUserToAddRows = false;
         }
 
         private void connectDb(bool firstTime, bool receiveSuccessMessage)
@@ -364,6 +334,8 @@ namespace AppTime
         {
             showPaths = checkBox1.Checked;
             updateLabel();
+            if (showPaths) dataGridView1.Columns[5].Visible = true;
+            else dataGridView1.Columns[5].Visible = false;
         }
 
         private void checkBox2_CheckedChanged(object sender, EventArgs e)
@@ -414,7 +386,19 @@ namespace AppTime
             this.WindowState = FormWindowState.Normal;
         }
 
-        
+        private void dataGridView1_CellContentClick(object sender, DataGridViewCellEventArgs e)
+        {
+            var senderGrid = (DataGridView)sender;
+
+            if (senderGrid.Columns[e.ColumnIndex] is DataGridViewButtonColumn &&
+            e.RowIndex >= 0)
+            {
+                DialogResult dialogResult = MessageBox.Show("Do you really want to remove this program?", "Delete Program", MessageBoxButtons.YesNo);
+                if (dialogResult == DialogResult.Yes)
+                    deleteProgram(e.RowIndex);
+                
+            }
+        }
     }
 
     class TrackedProgram
