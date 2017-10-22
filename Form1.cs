@@ -18,14 +18,15 @@ namespace AppTime
     public partial class Form1 : Form
     {
         List<TrackedProgram> Programs = new List<TrackedProgram>();
-        int numPrograms = 0;
+        int numPrograms = 0; 
 
         public SQLiteConnection dbConnection;
         string dbLoc;
         bool dbConnected = false;
         bool dbExist = false;
+        int version = 1;
 
-        
+
         //settings        
         bool settingsPanelExtended;
         bool showPaths;
@@ -60,7 +61,7 @@ namespace AppTime
 
             if (rkApp.GetValue("sinnzrAppTime") == null) checkBox3.Checked = false;
             else checkBox3.Checked = true;
-
+           
             loadSettings();
             timeTrackTimer.Start();
             automaticUpdateTimer.Start();
@@ -88,24 +89,33 @@ namespace AppTime
             sfd.FileName = "AppTime.sqlite";
             if (sfd.ShowDialog() == DialogResult.OK)
             {
+                closeDb(true);
+                if (File.Exists(sfd.FileName)) File.Delete(sfd.FileName);
                 dbLoc = sfd.FileName;
                 using (RegistryKey Key = Registry.CurrentUser.OpenSubKey(@"SOFTWARE\sinnzrAppTime\", true))
                     if (Key != null) //SubKey already exists
                     {
-                        SQLiteConnection.CreateFile(sfd.FileName);
-                        Key.SetValue("databaseLocation", sfd.FileName);
-                        dbExist = true;
-                        databaseAvailableLabel.Visible = false;
-                        connectDb(true, true);
+                        try { SQLiteConnection.CreateFile(sfd.FileName); }
+                        catch (IOException) { MessageBox.Show("IOException while trying to create database file."); }
+                        finally {
+                            Key.SetValue("databaseLocation", sfd.FileName);
+                            dbExist = true;
+                            databaseAvailableLabel.Visible = false;
+                            connectDb(true, true);
+                        }
+                        
                     }
                     else //create key
                     {
-                        SQLiteConnection.CreateFile(sfd.FileName);
-                        using (RegistryKey SubKey = Registry.CurrentUser.CreateSubKey(@"SOFTWARE\sinnzrAppTime"))
-                            SubKey.SetValue("databaseLocation", sfd.FileName);
-                        dbExist = true;
-                        databaseAvailableLabel.Visible = false;
-                        connectDb(true, true);
+                        try { SQLiteConnection.CreateFile(sfd.FileName); }
+                        catch (IOException) { MessageBox.Show("IOException while trying to create database file."); }
+                        finally {
+                            using (RegistryKey SubKey = Registry.CurrentUser.CreateSubKey(@"SOFTWARE\sinnzrAppTime"))
+                                SubKey.SetValue("databaseLocation", sfd.FileName);
+                            dbExist = true;
+                            databaseAvailableLabel.Visible = false;
+                            connectDb(true, true);
+                        }
                     }
             }
         }
@@ -133,12 +143,22 @@ namespace AppTime
 
         private void AddProgram(string path, string name)
         {
-            SQLiteCommand cmd = new SQLiteCommand("insert into programs (name, path, timeAdded) VALUES (@name, @path, @timeAdded);", dbConnection);
+            string friendlyName;
+            if (File.Exists(path))
+            {
+                FileVersionInfo fvi = FileVersionInfo.GetVersionInfo(path);
+                friendlyName = fvi.FileDescription;
+                if (friendlyName == null) friendlyName = name;
+            }
+            else friendlyName = name;
+            SQLiteCommand cmd = new SQLiteCommand("insert into programs (name, friendlyName, path, timeAdded) VALUES (@name, @friendlyName, @path, @timeAdded);", dbConnection);
             cmd.Parameters.AddWithValue("@name", name);
+            cmd.Parameters.AddWithValue("@friendlyName", friendlyName);
             cmd.Parameters.AddWithValue("@path", path);
             cmd.Parameters.AddWithValue("@timeAdded", DateTime.Now);
             cmd.ExecuteNonQuery();
-            TrackedProgram p = new TrackedProgram(path, name, 0);
+
+            TrackedProgram p = new TrackedProgram(path, name, friendlyName, 0);
             Programs.Add(p);
             updateLabel();
         }
@@ -164,8 +184,9 @@ namespace AppTime
             {
                 foreach (TrackedProgram item in Programs)
                 {
-                    SQLiteCommand cmd = new SQLiteCommand("UPDATE programs SET runtime = @runtime, lastTimeRun = @lastTimeRun WHERE name = @name AND path = @path", dbConnection);
+                    SQLiteCommand cmd = new SQLiteCommand("UPDATE programs SET runtime = @runtime, friendlyName = @friendlyName, lastTimeRun = @lastTimeRun WHERE name = @name AND path = @path", dbConnection);
                     cmd.Parameters.AddWithValue("@runtime", item.runtime);
+                    cmd.Parameters.AddWithValue("@friendlyName", item.friendlyName);
                     cmd.Parameters.AddWithValue("@lastTimeRun", item.lastTimeRun);
                     cmd.Parameters.AddWithValue("@name", item.Name);
                     cmd.Parameters.AddWithValue("@path", item.Path);
@@ -188,7 +209,7 @@ namespace AppTime
             dataGridView1.Rows.Clear();
             numPrograms = 0;
             string lastTimeRun = "Never";
-            string Name;
+            string friendlyName;
             foreach (TrackedProgram item in Programs)
             {
                 int id = numPrograms;
@@ -197,12 +218,12 @@ namespace AppTime
                 var hours = TimeSpan.FromMinutes(item.runtime).Hours;
                 var minutes = TimeSpan.FromMinutes(item.runtime).Minutes;
                 if (item.lastTimeRun != DateTime.MinValue) lastTimeRun = item.lastTimeRun.ToString("F");
-                if (processIsRunning(item.Path)) Name = item.Name + " (Currently running)";
-                else Name = item.Name;
+                if (processIsRunning(item.Path)) friendlyName = item.friendlyName + " (Currently running)";
+                else friendlyName = item.friendlyName;
 
                 DataGridViewRow row = (DataGridViewRow)dataGridView1.Rows[0].Clone();
                 row.Cells[0].Value = id;
-                row.Cells[1].Value = Name;
+                row.Cells[1].Value = friendlyName;
                 row.Cells[2].Value = String.Format("{0} Days, {1} Hours, {2} Minutes", days, hours, minutes);
                 row.Cells[3].Value = lastTimeRun;
                 row.Cells[4].Value = item.timeAdded.ToString("F");
@@ -223,14 +244,17 @@ namespace AppTime
                 dbConnection = new SQLiteConnection("Data Source=" + dbLoc + ";Version=3;");
                 dbConnection.Open();
                 dbConnected = true;
+                label6.Text = "Database location:\n" + dbLoc;
                 if (firstTime)
                 {
-                    ExecuteQuery(@"CREATE TABLE programs (name VARCHAR(128), path VARCHAR(128), runtime INT default 0, lastTimeRun DATETIME default null, timeAdded DATETIME default CURRENT_TIMESTAMP);
+                    ExecuteQuery(@"CREATE TABLE programs (name VARCHAR(128), friendlyName VARCHAR(128), path VARCHAR(128), runtime INT default 0, lastTimeRun DATETIME default null, timeAdded DATETIME default CURRENT_TIMESTAMP);
                                    CREATE TABLE `config` (`settingkey`	VARCHAR(128),`settingstate`	INT DEFAULT null,`settingvalue`	VARCHAR(128) DEFAULT null);
                                    INSERT INTO config (settingkey, settingstate) VALUES ('showPaths', 0);
                                    INSERT INTO config (settingkey, settingstate) VALUES ('minimizeToTray', 0);");
+                    MessageBox.Show("Successfully created new database.");
                 }
                 if (receiveSuccessMessage) MessageBox.Show("Sucessfully connected to SQLite database.");
+                updateLabel();
             }
             else MessageBox.Show("Database doesn't exist, unable to connect.");
         }
@@ -249,6 +273,7 @@ namespace AppTime
                             TrackedProgram tp = new TrackedProgram();
                             tp.Path = reader["path"].ToString();
                             tp.Name = reader["name"].ToString();
+                            tp.friendlyName = reader["friendlyName"].ToString();
                             tp.runtime = (int)reader["runtime"];
                             tp.lastTimeRun = reader["lastTimeRun"] as DateTime? ?? default(DateTime);
                             tp.timeAdded = (DateTime)reader["timeAdded"];
@@ -266,7 +291,8 @@ namespace AppTime
             if (dbConnected)
             {
                 SQLiteCommand command = new SQLiteCommand(query, dbConnection);
-                command.ExecuteNonQuery();
+                try { command.ExecuteNonQuery(); }
+                catch (Exception ex){ MessageBox.Show("Error while executing SQL query: " + ex.Message); }
             }
             else MessageBox.Show("Error executing query: not connected to database.");
         }
@@ -327,6 +353,9 @@ namespace AppTime
                 cmd.CommandText = "SELECT settingstate FROM config WHERE settingkey='minimizeToTray'";
                 if (Convert.ToInt32(cmd.ExecuteScalar()) == 0) { this.minimizeToTray = false; checkBox2.Checked = false; }
                 else { this.minimizeToTray = true; checkBox2.Checked = true; }
+
+                cmd.CommandText = "SELECT settingstate FROM config WHERE settingkey='version'";
+                version = Convert.ToInt32(cmd.ExecuteScalar());
             }
         }
 
@@ -351,11 +380,24 @@ namespace AppTime
 
         private void Form1_FormClosing(object sender, FormClosingEventArgs e)
         {
+            closeDb(false);
+            Application.Exit();
+        }
+
+        private void closeDb(bool runGC)
+        {
             if (dbConnected)
             {
                 updatePrograms(false, true);
                 updateSettings();
                 dbConnection.Close();
+                dbConnected = false;
+                Programs.Clear();
+                if (runGC)
+                {
+                    GC.Collect();
+                    GC.WaitForPendingFinalizers();
+                }
             }
             else return;
         }
@@ -399,19 +441,57 @@ namespace AppTime
                 
             }
         }
+
+        private void button5_Click(object sender, EventArgs e)
+        {
+            OpenFileDialog ofd = new OpenFileDialog();
+            ofd.Filter = "SQLite Databank (*.sqlite)|*.sqlite|All files (*.*)|*.*";
+            if (ofd.ShowDialog() == DialogResult.OK)
+            {
+                if (dbConnected) closeDb(false);
+
+                dbLoc = ofd.FileName;
+                using (RegistryKey SubKey = Registry.CurrentUser.CreateSubKey(@"SOFTWARE\sinnzrAppTime"))
+                    SubKey.SetValue("databaseLocation", ofd.FileName);
+                dbExist = true;
+                databaseAvailableLabel.Visible = false;
+                connectDb(false, true);
+                loadSettings();
+                loadDatabase();
+                updateLabel();
+                MessageBox.Show("Successfully imported database.");
+            }
+            else MessageBox.Show("Please select a valid databank.");
+        }
+
+        private void button6_Click(object sender, EventArgs e)
+        {
+            foreach(TrackedProgram program in Programs)
+            {
+                if (File.Exists(program.Path))
+                {
+                    FileVersionInfo fvi = FileVersionInfo.GetVersionInfo(program.Path);
+                    program.friendlyName = fvi.FileDescription;
+                    if (program.friendlyName == null) program.friendlyName = program.Name;
+                }
+            }
+            updateLabel();
+        }
     }
 
     class TrackedProgram
     {
         public string Path;
         public string Name;
+        public string friendlyName;
         public int runtime = 0; //in minutes
         public DateTime lastTimeRun;// = new DateTime(2017, 1, 1, 1, 1, 1, 1);
         public DateTime timeAdded = DateTime.Now;// = DateTime.Now;
-        public TrackedProgram(string selectedPath = "None Given", string selectedName = "None Given", int selectedRuntime = 0, DateTime? selectedTimeAdded = null, DateTime? selectedLastTimeRun = null)
+        public TrackedProgram(string selectedPath = "None Given", string selectedName = "None Given", string selectedFriendlyName = "None Given", int selectedRuntime = 0, DateTime? selectedTimeAdded = null, DateTime? selectedLastTimeRun = null)
         {
             Path = selectedPath;
             Name = selectedName;
+            friendlyName = selectedFriendlyName;
             selectedRuntime = runtime;
             selectedLastTimeRun = lastTimeRun;
             selectedTimeAdded = timeAdded;
