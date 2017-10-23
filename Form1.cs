@@ -21,17 +21,15 @@ namespace AppTime
         int numPrograms = 0; 
 
         public SQLiteConnection dbConnection;
-        string dbLoc;
+        public static string dbLoc;
         bool dbConnected = false;
         bool dbExist = false;
-        int version = 1;
 
-
-        //settings        
-        bool settingsPanelExtended;
-        bool showPaths;
-        bool minimizeToTray;
-        RegistryKey rkApp = Registry.CurrentUser.OpenSubKey("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", true);
+        //settings   
+        SettingsForm settingsForm = new SettingsForm();
+        public static bool showPaths;
+        public static bool minimizeToTray;
+        public static RegistryKey rkApp = Registry.CurrentUser.OpenSubKey("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", true);
 
         public Form1()
         {
@@ -51,21 +49,11 @@ namespace AppTime
                         loadDatabase();
                     }
                 }
-            if (!dbExist)
-            {
-                panel2.Enabled = true;
-                this.Size = new Size(782, 499); //with sidepanel
-                settingsPanelExtended = true;
-            }
-            else this.Size = new Size(628, 499);settingsPanelExtended = false;
-
-            if (rkApp.GetValue("sinnzrAppTime") == null) checkBox3.Checked = false;
-            else checkBox3.Checked = true;
+            if (!dbExist)settingsForm.Show();
            
             loadSettings();
             timeTrackTimer.Start();
             automaticUpdateTimer.Start();
-            if (!showPaths) dataGridView1.Columns[5].Visible = false;
         }
 
         private void button1_Click(object sender, EventArgs e)
@@ -82,7 +70,7 @@ namespace AppTime
             else MessageBox.Show("Create a databank first.");
         }
 
-        private void button2_Click(object sender, EventArgs e)
+        public void createDb()
         {
             SaveFileDialog sfd = new SaveFileDialog();
             sfd.Filter = "SQLite Databank (*.sqlite)|*.sqlite|All files (*.*)|*.*";
@@ -120,25 +108,11 @@ namespace AppTime
             }
         }
 
-        private void button3_Click(object sender, EventArgs e)
-        {
-            updatePrograms(true, false);
-            updateSettings();
-        }
-
         private void button4_Click(object sender, EventArgs e)
         {
-            if (settingsPanelExtended)
-            {
-                panel2.Enabled = false;
-                this.Size = new Size(628, 499);
-                settingsPanelExtended = false;
-            }
-            else {
-                panel2.Enabled = true;
-                this.Size = new Size(782, 499);
-                settingsPanelExtended = true;
-            }
+            if (!settingsForm.Visible) settingsForm.Show();
+            else settingsForm.Hide();
+
         }
 
         private void AddProgram(string path, string name)
@@ -178,20 +152,55 @@ namespace AppTime
             else MessageBox.Show("Can't delete program: Not connected to database.");
         }
 
-        private void updatePrograms(bool receiveSuccessMessage, bool automatic)
+        public void updateDb(bool receiveSuccessMessage, bool automatic)
         {
             if (dbConnected)
             {
                 foreach (TrackedProgram item in Programs)
                 {
-                    SQLiteCommand cmd = new SQLiteCommand("UPDATE programs SET runtime = @runtime, friendlyName = @friendlyName, lastTimeRun = @lastTimeRun WHERE name = @name AND path = @path", dbConnection);
-                    cmd.Parameters.AddWithValue("@runtime", item.runtime);
-                    cmd.Parameters.AddWithValue("@friendlyName", item.friendlyName);
-                    cmd.Parameters.AddWithValue("@lastTimeRun", item.lastTimeRun);
-                    cmd.Parameters.AddWithValue("@name", item.Name);
-                    cmd.Parameters.AddWithValue("@path", item.Path);
+                    using (SQLiteCommand cmd = new SQLiteCommand("UPDATE programs SET runtime = @runtime, friendlyName = @friendlyName, lastTimeRun = @lastTimeRun WHERE name = @name AND path = @path", dbConnection))
+                    {
+                        cmd.Parameters.AddWithValue("@runtime", item.runtime);
+                        cmd.Parameters.AddWithValue("@friendlyName", item.friendlyName);
+                        cmd.Parameters.AddWithValue("@lastTimeRun", item.lastTimeRun);
+                        cmd.Parameters.AddWithValue("@name", item.Name);
+                        cmd.Parameters.AddWithValue("@path", item.Path);
+                        cmd.ExecuteNonQuery();
+                    }
+                }
+                int showPathsState;
+                if (showPaths) showPathsState = 1;
+                else showPathsState = 0;
+
+                int minimizeToTrayState;
+                if (minimizeToTray) minimizeToTrayState = 1;
+                else minimizeToTrayState = 0;
+
+                using (SQLiteCommand cmd = new SQLiteCommand(dbConnection))
+                {
+                    cmd.CommandText = @"UPDATE config SET settingstate=@showPathState WHERE settingkey='showPaths';
+                                    UPDATE config SET settingstate=@minimizeToTrayState WHERE settingkey='minimizeToTray';
+                                    UPDATE config SET settingvalue=@settingvalue0 WHERE settingkey='column0Width';
+                                    UPDATE config SET settingvalue=@settingvalue1 WHERE settingkey='column1Width';
+                                    UPDATE config SET settingvalue=@settingvalue2 WHERE settingkey='column2Width';
+                                    UPDATE config SET settingvalue=@settingvalue3 WHERE settingkey='column3Width';
+                                    UPDATE config SET settingvalue=@settingvalue4 WHERE settingkey='column4Width';
+                                    UPDATE config SET settingvalue=@settingvalue5 WHERE settingkey='column5Width';
+                                    UPDATE config SET settingvalue=@formWidth WHERE settingkey='formWidth';
+                                    UPDATE config SET settingvalue=@formHeight WHERE settingkey='formHeight';";
+                    cmd.Parameters.AddWithValue("@showPathState", showPathsState);
+                    cmd.Parameters.AddWithValue("@minimizeToTrayState", minimizeToTrayState);
+                    cmd.Parameters.AddWithValue("@settingvalue0", dataGridView1.Columns[0].Width);
+                    cmd.Parameters.AddWithValue("@settingvalue1", dataGridView1.Columns[1].Width);
+                    cmd.Parameters.AddWithValue("@settingvalue2", dataGridView1.Columns[2].Width);
+                    cmd.Parameters.AddWithValue("@settingvalue3", dataGridView1.Columns[3].Width);
+                    cmd.Parameters.AddWithValue("@settingvalue4", dataGridView1.Columns[4].Width);
+                    cmd.Parameters.AddWithValue("@settingvalue5", dataGridView1.Columns[5].Width);
+                    cmd.Parameters.AddWithValue("@formWidth", this.Width);
+                    cmd.Parameters.AddWithValue("@formHeight", this.Height);
                     cmd.ExecuteNonQuery();
                 }
+
                 if (receiveSuccessMessage) MessageBox.Show("Successfully updated database.");
                 if (automatic) label3.Text = "Last updated: " + DateTime.Now.ToString("F") + " (Automatic update)";
                 else {
@@ -244,13 +253,20 @@ namespace AppTime
                 dbConnection = new SQLiteConnection("Data Source=" + dbLoc + ";Version=3;");
                 dbConnection.Open();
                 dbConnected = true;
-                label6.Text = "Database location:\n" + dbLoc;
                 if (firstTime)
                 {
                     ExecuteQuery(@"CREATE TABLE programs (name VARCHAR(128), friendlyName VARCHAR(128), path VARCHAR(128), runtime INT default 0, lastTimeRun DATETIME default null, timeAdded DATETIME default CURRENT_TIMESTAMP);
                                    CREATE TABLE `config` (`settingkey`	VARCHAR(128),`settingstate`	INT DEFAULT null,`settingvalue`	VARCHAR(128) DEFAULT null);
                                    INSERT INTO config (settingkey, settingstate) VALUES ('showPaths', 0);
-                                   INSERT INTO config (settingkey, settingstate) VALUES ('minimizeToTray', 0);");
+                                   INSERT INTO config (settingkey, settingstate) VALUES ('minimizeToTray', 0);
+                                   INSERT INTO config (settingkey, settingvalue) VALUES ('column0Width', 30);
+                                   INSERT INTO config (settingkey, settingvalue) VALUES ('column1Width', 100);
+                                   INSERT INTO config (settingkey, settingvalue) VALUES ('column2Width', 100);
+                                   INSERT INTO config (settingkey, settingvalue) VALUES ('column3Width', 100);
+                                   INSERT INTO config (settingkey, settingvalue) VALUES ('column4Width', 100);
+                                   INSERT INTO config (settingkey, settingvalue) VALUES ('column5Width', 100);
+                                   INSERT INTO config (settingkey, settingvalue) VALUES ('formWidth', 634);
+                                   INSERT INTO config (settingkey, settingvalue) VALUES ('formHeight', 439);");
                     MessageBox.Show("Successfully created new database.");
                 }
                 if (receiveSuccessMessage) MessageBox.Show("Sucessfully connected to SQLite database.");
@@ -290,9 +306,11 @@ namespace AppTime
         {
             if (dbConnected)
             {
-                SQLiteCommand command = new SQLiteCommand(query, dbConnection);
-                try { command.ExecuteNonQuery(); }
-                catch (Exception ex){ MessageBox.Show("Error while executing SQL query: " + ex.Message); }
+                using (SQLiteCommand command = new SQLiteCommand(query, dbConnection))
+                {
+                    try { command.ExecuteNonQuery(); }
+                    catch (Exception ex) { MessageBox.Show("Error while executing SQL query: " + ex.Message); }
+                }
             }
             else MessageBox.Show("Error executing query: not connected to database.");
         }
@@ -319,63 +337,54 @@ namespace AppTime
 
         private void automaticUpdateTimer_Tick(object sender, EventArgs e)
         {
-            updatePrograms(false, true);
+            updateDb(false, true);
         }
         
-        public void updateSettings()
-        {
-            if (dbConnected)
-            {
-                int showPathsState;
-                int minimizeToTrayState;
-                SQLiteCommand cmd = new SQLiteCommand("UPDATE config SET settingstate=@settingstate WHERE settingkey='showPaths';", dbConnection);
-                if (showPaths) showPathsState = 1;
-                else showPathsState = 0;
-                cmd.Parameters.AddWithValue("@settingstate", showPathsState);
-                cmd.ExecuteNonQuery();
-
-                if (minimizeToTray) minimizeToTrayState = 1;
-                else minimizeToTrayState = 0;
-                cmd.CommandText = "UPDATE config SET settingstate=@settingstate WHERE settingkey='minimizeToTray'";
-                cmd.Parameters.AddWithValue("@settingstate", minimizeToTrayState);
-                cmd.ExecuteNonQuery();
-            }
-        }
-
         public void loadSettings()
         {
             if (dbConnected)
             {
-                SQLiteCommand cmd = new SQLiteCommand("SELECT settingstate FROM config WHERE settingkey='showPaths'", dbConnection);
-                if (Convert.ToInt32(cmd.ExecuteScalar()) == 0) { this.showPaths = false; checkBox1.Checked = false; }
-                else { this.showPaths = true; checkBox1.Checked = true; }
+                using (SQLiteCommand cmd = new SQLiteCommand("SELECT settingstate FROM config WHERE settingkey='showPaths'", dbConnection))
+                {
+                    if (Convert.ToInt32(cmd.ExecuteScalar()) == 0) changeSetting("showPaths", false);
+                    else changeSetting("showPaths", true);
 
-                cmd.CommandText = "SELECT settingstate FROM config WHERE settingkey='minimizeToTray'";
-                if (Convert.ToInt32(cmd.ExecuteScalar()) == 0) { this.minimizeToTray = false; checkBox2.Checked = false; }
-                else { this.minimizeToTray = true; checkBox2.Checked = true; }
+                    cmd.CommandText = "SELECT settingstate FROM config WHERE settingkey='minimizeToTray'";
+                    if (Convert.ToInt32(cmd.ExecuteScalar()) == 0) minimizeToTray = false;
+                    else minimizeToTray = true;
 
-                cmd.CommandText = "SELECT settingstate FROM config WHERE settingkey='version'";
-                version = Convert.ToInt32(cmd.ExecuteScalar());
+                    cmd.CommandText = "SELECT settingvalue FROM config WHERE settingkey='column0Width';";
+                    dataGridView1.Columns[0].Width = Convert.ToInt32(cmd.ExecuteScalar());
+                    cmd.CommandText = "SELECT settingvalue FROM config WHERE settingkey='column1Width';";
+                    dataGridView1.Columns[1].Width = Convert.ToInt32(cmd.ExecuteScalar());
+                    cmd.CommandText = "SELECT settingvalue FROM config WHERE settingkey='column2Width';";
+                    dataGridView1.Columns[2].Width = Convert.ToInt32(cmd.ExecuteScalar());
+                    cmd.CommandText = "SELECT settingvalue FROM config WHERE settingkey='column3Width';";
+                    dataGridView1.Columns[3].Width = Convert.ToInt32(cmd.ExecuteScalar());
+                    cmd.CommandText = "SELECT settingvalue FROM config WHERE settingkey='column4Width';";
+                    dataGridView1.Columns[4].Width = Convert.ToInt32(cmd.ExecuteScalar());
+                    cmd.CommandText = "SELECT settingvalue FROM config WHERE settingkey='column5Width';";
+                    dataGridView1.Columns[5].Width = Convert.ToInt32(cmd.ExecuteScalar());
+                    cmd.CommandText = "SELECT settingvalue FROM config WHERE settingkey='formWidth';";
+                    this.Width = Convert.ToInt32(cmd.ExecuteScalar());
+                    cmd.CommandText = "SELECT settingvalue FROM config WHERE settingkey='formHeight';";
+                    this.Height = Convert.ToInt32(cmd.ExecuteScalar());
+                }
             }
         }
 
-        private void checkBox1_CheckedChanged(object sender, EventArgs e)
+        public void changeSetting(string setting, bool val)
         {
-            showPaths = checkBox1.Checked;
-            updateLabel();
-            if (showPaths) dataGridView1.Columns[5].Visible = true;
-            else dataGridView1.Columns[5].Visible = false;
-        }
-
-        private void checkBox2_CheckedChanged(object sender, EventArgs e)
-        {
-            minimizeToTray = checkBox2.Checked;
-        }
-
-        private void checkBox3_CheckedChanged(object sender, EventArgs e)
-        {
-            if (checkBox3.Checked) rkApp.SetValue("sinnzrAppTime", Application.ExecutablePath);
-            else rkApp.DeleteValue("sinnzrAppTime", false);
+            if(setting == "showPaths")
+            {
+                showPaths = val;
+                dataGridView1.Columns[5].Visible = val;
+                updateLabel();
+            }
+            else if (setting == "minimizeToTray")
+            {
+                minimizeToTray = val;
+            }
         }
 
         private void Form1_FormClosing(object sender, FormClosingEventArgs e)
@@ -388,8 +397,7 @@ namespace AppTime
         {
             if (dbConnected)
             {
-                updatePrograms(false, true);
-                updateSettings();
+                updateDb(false, true);
                 dbConnection.Close();
                 dbConnected = false;
                 Programs.Clear();
@@ -442,7 +450,7 @@ namespace AppTime
             }
         }
 
-        private void button5_Click(object sender, EventArgs e)
+        public void importDb()
         {
             OpenFileDialog ofd = new OpenFileDialog();
             ofd.Filter = "SQLite Databank (*.sqlite)|*.sqlite|All files (*.*)|*.*";
@@ -464,7 +472,7 @@ namespace AppTime
             else MessageBox.Show("Please select a valid databank.");
         }
 
-        private void button6_Click(object sender, EventArgs e)
+        public void fixFriendlyNames()
         {
             foreach(TrackedProgram program in Programs)
             {
