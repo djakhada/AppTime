@@ -43,6 +43,7 @@
             this.idColumn = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.programColumn = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.Column6 = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.Column2 = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.Column3 = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.Column4 = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.Column1 = new System.Windows.Forms.DataGridViewTextBoxColumn();
@@ -146,6 +147,7 @@
             this.idColumn,
             this.programColumn,
             this.Column6,
+            this.Column2,
             this.Column3,
             this.Column4,
             this.Column1,
@@ -155,7 +157,7 @@
             this.dataGridView1.Name = "dataGridView1";
             this.dataGridView1.ReadOnly = true;
             this.dataGridView1.RowHeadersVisible = false;
-            this.dataGridView1.Size = new System.Drawing.Size(597, 306);
+            this.dataGridView1.Size = new System.Drawing.Size(696, 306);
             this.dataGridView1.TabIndex = 13;
             this.dataGridView1.CellContentClick += new System.Windows.Forms.DataGridViewCellEventHandler(this.dataGridView1_CellContentClick);
             // 
@@ -177,6 +179,12 @@
             this.Column6.HeaderText = "Active run time";
             this.Column6.Name = "Column6";
             this.Column6.ReadOnly = true;
+            // 
+            // Column2
+            // 
+            this.Column2.HeaderText = "Total run time";
+            this.Column2.Name = "Column2";
+            this.Column2.ReadOnly = true;
             // 
             // Column3
             // 
@@ -231,7 +239,7 @@
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(618, 400);
+            this.ClientSize = new System.Drawing.Size(717, 400);
             this.Controls.Add(this.dataGridView1);
             this.Controls.Add(this.button4);
             this.Controls.Add(this.label3);
@@ -265,16 +273,17 @@
         private System.Windows.Forms.Button button4;
         private System.Windows.Forms.NotifyIcon notifyIcon1;
         private System.Windows.Forms.DataGridView dataGridView1;
+        private System.Windows.Forms.ContextMenuStrip contextMenuStrip1;
+        private System.Windows.Forms.ToolStripMenuItem selectExecutableFileToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem selectFromListOfCurrentlyRunningProcessesToolStripMenuItem;
         private System.Windows.Forms.DataGridViewTextBoxColumn idColumn;
         private System.Windows.Forms.DataGridViewTextBoxColumn programColumn;
         private System.Windows.Forms.DataGridViewTextBoxColumn Column6;
+        private System.Windows.Forms.DataGridViewTextBoxColumn Column2;
         private System.Windows.Forms.DataGridViewTextBoxColumn Column3;
         private System.Windows.Forms.DataGridViewTextBoxColumn Column4;
         private System.Windows.Forms.DataGridViewTextBoxColumn Column1;
         private System.Windows.Forms.DataGridViewButtonColumn Column5;
-        private System.Windows.Forms.ContextMenuStrip contextMenuStrip1;
-        private System.Windows.Forms.ToolStripMenuItem selectExecutableFileToolStripMenuItem;
-        private System.Windows.Forms.ToolStripMenuItem selectFromListOfCurrentlyRunningProcessesToolStripMenuItem;
     }
 }
 

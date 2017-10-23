@@ -12,6 +12,7 @@ using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.Runtime.InteropServices;
 
 namespace AppTime
 {
@@ -31,6 +32,9 @@ namespace AppTime
         public static bool showPaths;
         public static bool minimizeToTray;
         public static RegistryKey rkApp = Registry.CurrentUser.OpenSubKey("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", true);
+
+        [DllImport("user32.dll", CharSet = CharSet.Auto, ExactSpelling = true)]
+        private static extern IntPtr GetForegroundWindow();
 
         public Form1()
         {
@@ -175,9 +179,10 @@ namespace AppTime
             {
                 foreach (TrackedProgram item in Programs)
                 {
-                    using (SQLiteCommand cmd = new SQLiteCommand("UPDATE programs SET runtime = @runtime, friendlyName = @friendlyName, lastTimeRun = @lastTimeRun WHERE name = @name AND path = @path", dbConnection))
+                    using (SQLiteCommand cmd = new SQLiteCommand("UPDATE programs SET runtime = @runtime, activeRuntime = @activeRuntime, friendlyName = @friendlyName, lastTimeRun = @lastTimeRun WHERE name = @name AND path = @path", dbConnection))
                     {
                         cmd.Parameters.AddWithValue("@runtime", item.runtime);
+                        cmd.Parameters.AddWithValue("@activeRuntime", item.activeRuntime);
                         cmd.Parameters.AddWithValue("@friendlyName", item.friendlyName);
                         cmd.Parameters.AddWithValue("@lastTimeRun", item.lastTimeRun);
                         cmd.Parameters.AddWithValue("@name", item.Name);
@@ -203,6 +208,7 @@ namespace AppTime
                                     UPDATE config SET settingvalue=@settingvalue3 WHERE settingkey='column3Width';
                                     UPDATE config SET settingvalue=@settingvalue4 WHERE settingkey='column4Width';
                                     UPDATE config SET settingvalue=@settingvalue5 WHERE settingkey='column5Width';
+                                    UPDATE config SET settingvalue=@settingvalue6 WHERE settingkey='column6Width';
                                     UPDATE config SET settingvalue=@formWidth WHERE settingkey='formWidth';
                                     UPDATE config SET settingvalue=@formHeight WHERE settingkey='formHeight';";
                     cmd.Parameters.AddWithValue("@showPathState", showPathsState);
@@ -213,6 +219,7 @@ namespace AppTime
                     cmd.Parameters.AddWithValue("@settingvalue3", dataGridView1.Columns[3].Width);
                     cmd.Parameters.AddWithValue("@settingvalue4", dataGridView1.Columns[4].Width);
                     cmd.Parameters.AddWithValue("@settingvalue5", dataGridView1.Columns[5].Width);
+                    cmd.Parameters.AddWithValue("@settingvalue6", dataGridView1.Columns[6].Width);
                     cmd.Parameters.AddWithValue("@formWidth", this.Width);
                     cmd.Parameters.AddWithValue("@formHeight", this.Height);
                     cmd.ExecuteNonQuery();
@@ -240,9 +247,12 @@ namespace AppTime
             foreach (TrackedProgram item in Programs)
             {
                 DataGridViewRow row = (DataGridViewRow)dataGridView1.Rows[0].Clone();
-                var days = TimeSpan.FromMinutes(item.runtime).Days;
-                var hours = TimeSpan.FromMinutes(item.runtime).Hours;
-                var minutes = TimeSpan.FromMinutes(item.runtime).Minutes;
+                var Tdays = TimeSpan.FromMinutes(item.runtime).Days;
+                var Thours = TimeSpan.FromMinutes(item.runtime).Hours;
+                var Tminutes = TimeSpan.FromMinutes(item.runtime).Minutes;
+                var Adays = TimeSpan.FromMinutes(item.activeRuntime).Days;
+                var Ahours = TimeSpan.FromMinutes(item.activeRuntime).Hours;
+                var Aminutes = TimeSpan.FromMinutes(item.activeRuntime).Minutes;
                 if (item.lastTimeRun != DateTime.MinValue) lastTimeRun = item.lastTimeRun.ToString("F");
                 if (processIsRunning(item.Path))
                 {
@@ -256,10 +266,11 @@ namespace AppTime
       
                 row.Cells[0].Value = numPrograms;
                 row.Cells[1].Value = friendlyName;
-                row.Cells[2].Value = String.Format("{0} Days, {1} Hours, {2} Minutes", days, hours, minutes);
-                row.Cells[3].Value = lastTimeRun;
-                row.Cells[4].Value = item.timeAdded.ToString("F");
-                if(showPaths)row.Cells[5].Value = item.Path;
+                row.Cells[2].Value = String.Format("{0} Days, {1} Hours, {2} Minutes", Adays, Ahours, Aminutes);
+                row.Cells[3].Value = String.Format("{0} Days, {1} Hours, {2} Minutes", Tdays, Thours, Tminutes);
+                row.Cells[4].Value = lastTimeRun;
+                row.Cells[5].Value = item.timeAdded.ToString("F");
+                if(showPaths)row.Cells[6].Value = item.Path;
                 dataGridView1.Rows.Add(row);
 
                 numPrograms++;
@@ -278,7 +289,7 @@ namespace AppTime
                 dbConnected = true;
                 if (firstTime)
                 {
-                    ExecuteQuery(@"CREATE TABLE programs (name VARCHAR(128), friendlyName VARCHAR(128), path VARCHAR(128), runtime INT default 0, lastTimeRun DATETIME default null, timeAdded DATETIME default CURRENT_TIMESTAMP);
+                    ExecuteQuery(@"CREATE TABLE programs (name VARCHAR(128), friendlyName VARCHAR(128), path VARCHAR(128), runtime INT default 0, activeRuntime	INT DEFAULT 0, lastTimeRun DATETIME default null, timeAdded DATETIME default CURRENT_TIMESTAMP);
                                    CREATE TABLE `config` (`settingkey`	VARCHAR(128),`settingstate`	INT DEFAULT null,`settingvalue`	VARCHAR(128) DEFAULT null);
                                    INSERT INTO config (settingkey, settingstate) VALUES ('showPaths', 0);
                                    INSERT INTO config (settingkey, settingstate) VALUES ('minimizeToTray', 0);
@@ -288,7 +299,8 @@ namespace AppTime
                                    INSERT INTO config (settingkey, settingvalue) VALUES ('column3Width', 100);
                                    INSERT INTO config (settingkey, settingvalue) VALUES ('column4Width', 100);
                                    INSERT INTO config (settingkey, settingvalue) VALUES ('column5Width', 100);
-                                   INSERT INTO config (settingkey, settingvalue) VALUES ('formWidth', 634);
+                                   INSERT INTO config (settingkey, settingvalue) VALUES ('column6Width', 100);
+                                   INSERT INTO config (settingkey, settingvalue) VALUES ('formWidth', 733);
                                    INSERT INTO config (settingkey, settingvalue) VALUES ('formHeight', 439);");
                     MessageBox.Show("Successfully created new database.");
                 }
@@ -313,6 +325,7 @@ namespace AppTime
                             tp.Name = reader["name"].ToString();
                             tp.friendlyName = reader["friendlyName"].ToString();
                             tp.runtime = (int)reader["runtime"];
+                            tp.activeRuntime = (int)reader["activeRuntime"];
                             tp.lastTimeRun = reader["lastTimeRun"] as DateTime? ?? default(DateTime);
                             tp.timeAdded = (DateTime)reader["timeAdded"];
                             Programs.Add(tp);
@@ -342,6 +355,8 @@ namespace AppTime
                     dataGridView1.Columns[4].Width = Convert.ToInt32(cmd.ExecuteScalar());
                     cmd.CommandText = "SELECT settingvalue FROM config WHERE settingkey='column5Width';";
                     dataGridView1.Columns[5].Width = Convert.ToInt32(cmd.ExecuteScalar());
+                    cmd.CommandText = "SELECT settingvalue FROM config WHERE settingkey='column6Width';";
+                    dataGridView1.Columns[6].Width = Convert.ToInt32(cmd.ExecuteScalar());
                     cmd.CommandText = "SELECT settingvalue FROM config WHERE settingkey='formWidth';";
                     this.Width = Convert.ToInt32(cmd.ExecuteScalar());
                     cmd.CommandText = "SELECT settingvalue FROM config WHERE settingkey='formHeight';";
@@ -375,10 +390,16 @@ namespace AppTime
         {
             foreach (TrackedProgram item in Programs)
             {
-                if (processIsRunning(item.Path))
-                {
+                var activatedHandle = GetForegroundWindow();
+                Process[] processes = Process.GetProcessesByName(Path.GetFileNameWithoutExtension(item.Path));
+                if (processes.Length > 0)
+                { 
                     item.runtime++;
                     item.lastTimeRun = DateTime.Now;
+                    if(processes.Any(p => p.MainWindowHandle == activatedHandle || p.Handle == activatedHandle))
+                    {
+                        item.activeRuntime++;
+                    }
                 }
             }
             updateProgramList();
@@ -394,7 +415,7 @@ namespace AppTime
             if(setting == "showPaths")
             {
                 showPaths = val;
-                dataGridView1.Columns[5].Visible = val;
+                dataGridView1.Columns[6].Visible = val;
                 updateProgramList();
             }
             else if (setting == "minimizeToTray")
@@ -510,10 +531,12 @@ namespace AppTime
         public string Name;
         public string friendlyName;
         public int runtime = 0; //in minutes
+        public int activeRuntime = 0;
         public DateTime lastTimeRun;// = new DateTime(2017, 1, 1, 1, 1, 1, 1);
         public DateTime timeAdded = DateTime.Now;// = DateTime.Now;
-        public TrackedProgram(string selectedPath = "None Given", string selectedName = "None Given", string selectedFriendlyName = "None Given", int selectedRuntime = 0, DateTime? selectedTimeAdded = null, DateTime? selectedLastTimeRun = null)
+        public TrackedProgram(string selectedPath = "None Given", string selectedName = "None Given", string selectedFriendlyName = "None Given", int selectedRuntime = 0, int selectedactiveRuntime = 0, DateTime? selectedTimeAdded = null, DateTime? selectedLastTimeRun = null)
         {
+            activeRuntime = selectedactiveRuntime;
             Path = selectedPath;
             Name = selectedName;
             friendlyName = selectedFriendlyName;
