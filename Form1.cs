@@ -60,14 +60,27 @@ namespace AppTime
         {
             if (dbConnected)
             {
+                contextMenuStrip1.Show(button1, 0, button1.Height);
+            }
+            else MessageBox.Show("Create a databank first.");
+        }
+
+        private void contextMenuStrip1_ItemClicked(object sender, ToolStripItemClickedEventArgs e)
+        {
+            if (e.ClickedItem.Text == "Select executable file...")
+            {
+                contextMenuStrip1.Hide();
                 OpenFileDialog ofd = new OpenFileDialog();
                 ofd.Filter = "Executable Files (*.exe)|*.exe";
                 if (ofd.ShowDialog() == DialogResult.OK)
                 {
-                    AddProgram(ofd.FileName, ofd.SafeFileName);
+                    AddProgram(ofd.FileName);
                 }
             }
-            else MessageBox.Show("Create a databank first.");
+            else if (e.ClickedItem.Text == "Select from list of currently running processes...")
+            {
+                new ProcessForm().Show();
+            }
         }
 
         public void createDb()
@@ -115,26 +128,31 @@ namespace AppTime
 
         }
 
-        private void AddProgram(string path, string name)
+        public void AddProgram(string path)
         {
-            string friendlyName;
-            if (File.Exists(path))
+            if (!Programs.Any(item => item.Path == path))
             {
-                FileVersionInfo fvi = FileVersionInfo.GetVersionInfo(path);
-                friendlyName = fvi.FileDescription;
-                if (friendlyName == null) friendlyName = name;
-            }
-            else friendlyName = name;
-            SQLiteCommand cmd = new SQLiteCommand("insert into programs (name, friendlyName, path, timeAdded) VALUES (@name, @friendlyName, @path, @timeAdded);", dbConnection);
-            cmd.Parameters.AddWithValue("@name", name);
-            cmd.Parameters.AddWithValue("@friendlyName", friendlyName);
-            cmd.Parameters.AddWithValue("@path", path);
-            cmd.Parameters.AddWithValue("@timeAdded", DateTime.Now);
-            cmd.ExecuteNonQuery();
+                string friendlyName;
+                string name = Path.GetFileName(path);
+                if (File.Exists(path))
+                {
+                    FileVersionInfo fvi = FileVersionInfo.GetVersionInfo(path);
+                    friendlyName = fvi.FileDescription;
+                    if (friendlyName == null) friendlyName = name;
+                }
+                else friendlyName = name;
+                SQLiteCommand cmd = new SQLiteCommand("insert into programs (name, friendlyName, path, timeAdded) VALUES (@name, @friendlyName, @path, @timeAdded);", dbConnection);
+                cmd.Parameters.AddWithValue("@name", name);
+                cmd.Parameters.AddWithValue("@friendlyName", friendlyName);
+                cmd.Parameters.AddWithValue("@path", path);
+                cmd.Parameters.AddWithValue("@timeAdded", DateTime.Now);
+                cmd.ExecuteNonQuery();
 
-            TrackedProgram p = new TrackedProgram(path, name, friendlyName, 0);
-            Programs.Add(p);
-            updateProgramList();
+                TrackedProgram p = new TrackedProgram(path, name, friendlyName, 0);
+                Programs.Add(p);
+                updateProgramList();
+            }
+            else MessageBox.Show(path + " is already in list.");
         }
 
         private void deleteProgram(int id)
@@ -147,7 +165,6 @@ namespace AppTime
                 cmd.ExecuteNonQuery();
                 Programs.RemoveAt(id);
                 updateProgramList();
-                MessageBox.Show("Successfully deleted Program.");
             }
             else MessageBox.Show("Can't delete program: Not connected to database.");
         }
@@ -230,11 +247,11 @@ namespace AppTime
                 if (processIsRunning(item.Path))
                 {
                     friendlyName = item.friendlyName + " (Currently running)";
-                    row.Cells[1].Style.BackColor = SystemColors.ControlLight;
+                    row.DefaultCellStyle.BackColor = SystemColors.ControlLight;
                 }
                 else {
                     friendlyName = item.friendlyName;
-                    row.Cells[1].Style.BackColor = SystemColors.Window;
+                    row.DefaultCellStyle.BackColor = SystemColors.Window;
                 }
       
                 row.Cells[0].Value = numPrograms;
@@ -483,6 +500,8 @@ namespace AppTime
             }
             updateProgramList();
         }
+
+        
     }
 
     class TrackedProgram

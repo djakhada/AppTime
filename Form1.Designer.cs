@@ -47,7 +47,11 @@
             this.Column4 = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.Column1 = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.Column5 = new System.Windows.Forms.DataGridViewButtonColumn();
+            this.contextMenuStrip1 = new System.Windows.Forms.ContextMenuStrip(this.components);
+            this.selectExecutableFileToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.selectFromListOfCurrentlyRunningProcessesToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             ((System.ComponentModel.ISupportInitialize)(this.dataGridView1)).BeginInit();
+            this.contextMenuStrip1.SuspendLayout();
             this.SuspendLayout();
             // 
             // button1
@@ -202,6 +206,27 @@
             this.Column5.UseColumnTextForButtonValue = true;
             this.Column5.Width = 60;
             // 
+            // contextMenuStrip1
+            // 
+            this.contextMenuStrip1.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.selectExecutableFileToolStripMenuItem,
+            this.selectFromListOfCurrentlyRunningProcessesToolStripMenuItem});
+            this.contextMenuStrip1.Name = "contextMenuStrip1";
+            this.contextMenuStrip1.Size = new System.Drawing.Size(325, 48);
+            this.contextMenuStrip1.ItemClicked += new System.Windows.Forms.ToolStripItemClickedEventHandler(this.contextMenuStrip1_ItemClicked);
+            // 
+            // selectExecutableFileToolStripMenuItem
+            // 
+            this.selectExecutableFileToolStripMenuItem.Name = "selectExecutableFileToolStripMenuItem";
+            this.selectExecutableFileToolStripMenuItem.Size = new System.Drawing.Size(324, 22);
+            this.selectExecutableFileToolStripMenuItem.Text = "Select executable file...";
+            // 
+            // selectFromListOfCurrentlyRunningProcessesToolStripMenuItem
+            // 
+            this.selectFromListOfCurrentlyRunningProcessesToolStripMenuItem.Name = "selectFromListOfCurrentlyRunningProcessesToolStripMenuItem";
+            this.selectFromListOfCurrentlyRunningProcessesToolStripMenuItem.Size = new System.Drawing.Size(324, 22);
+            this.selectFromListOfCurrentlyRunningProcessesToolStripMenuItem.Text = "Select from list of currently running processes...";
+            // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
@@ -222,6 +247,7 @@
             this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.Form1_FormClosing);
             this.Resize += new System.EventHandler(this.Form1_Resize);
             ((System.ComponentModel.ISupportInitialize)(this.dataGridView1)).EndInit();
+            this.contextMenuStrip1.ResumeLayout(false);
             this.ResumeLayout(false);
             this.PerformLayout();
 
@@ -246,6 +272,9 @@
         private System.Windows.Forms.DataGridViewTextBoxColumn Column4;
         private System.Windows.Forms.DataGridViewTextBoxColumn Column1;
         private System.Windows.Forms.DataGridViewButtonColumn Column5;
+        private System.Windows.Forms.ContextMenuStrip contextMenuStrip1;
+        private System.Windows.Forms.ToolStripMenuItem selectExecutableFileToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem selectFromListOfCurrentlyRunningProcessesToolStripMenuItem;
     }
 }
 
