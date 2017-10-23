@@ -219,19 +219,25 @@ namespace AppTime
             numPrograms = 0;
             string lastTimeRun = "Never";
             string friendlyName;
+
             foreach (TrackedProgram item in Programs)
             {
-                int id = numPrograms;
-
+                DataGridViewRow row = (DataGridViewRow)dataGridView1.Rows[0].Clone();
                 var days = TimeSpan.FromMinutes(item.runtime).Days;
                 var hours = TimeSpan.FromMinutes(item.runtime).Hours;
                 var minutes = TimeSpan.FromMinutes(item.runtime).Minutes;
                 if (item.lastTimeRun != DateTime.MinValue) lastTimeRun = item.lastTimeRun.ToString("F");
-                if (processIsRunning(item.Path)) friendlyName = item.friendlyName + " (Currently running)";
-                else friendlyName = item.friendlyName;
-
-                DataGridViewRow row = (DataGridViewRow)dataGridView1.Rows[0].Clone();
-                row.Cells[0].Value = id;
+                if (processIsRunning(item.Path))
+                {
+                    friendlyName = item.friendlyName + " (Currently running)";
+                    row.Cells[1].Style.BackColor = SystemColors.ControlLight;
+                }
+                else {
+                    friendlyName = item.friendlyName;
+                    row.Cells[1].Style.BackColor = SystemColors.Window;
+                }
+      
+                row.Cells[0].Value = numPrograms;
                 row.Cells[1].Value = friendlyName;
                 row.Cells[2].Value = String.Format("{0} Days, {1} Hours, {2} Minutes", days, hours, minutes);
                 row.Cells[3].Value = lastTimeRun;
