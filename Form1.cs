@@ -20,12 +20,13 @@ namespace AppTime
         List<TrackedProgram> Programs = new List<TrackedProgram>();
         int numPrograms = 0; 
 
+        //Database
         public SQLiteConnection dbConnection;
         public static string dbLoc;
         bool dbConnected = false;
         bool dbExist = false;
 
-        //settings   
+        //Settings   
         SettingsForm settingsForm = new SettingsForm();
         public static bool showPaths;
         public static bool minimizeToTray;
@@ -46,12 +47,11 @@ namespace AppTime
                         dbExist = true;
                         connectDb(false, false);
                         databaseAvailableLabel.Visible = false;
-                        loadDatabase();
+                        loadDb();
                     }
                 }
             if (!dbExist)settingsForm.Show();
            
-            loadSettings();
             timeTrackTimer.Start();
             automaticUpdateTimer.Start();
         }
@@ -134,7 +134,7 @@ namespace AppTime
 
             TrackedProgram p = new TrackedProgram(path, name, friendlyName, 0);
             Programs.Add(p);
-            updateLabel();
+            updateProgramList();
         }
 
         private void deleteProgram(int id)
@@ -146,7 +146,7 @@ namespace AppTime
                 cmd.Parameters.AddWithValue("@path", Programs[id].Path);
                 cmd.ExecuteNonQuery();
                 Programs.RemoveAt(id);
-                updateLabel();
+                updateProgramList();
                 MessageBox.Show("Successfully deleted Program.");
             }
             else MessageBox.Show("Can't delete program: Not connected to database.");
@@ -212,7 +212,7 @@ namespace AppTime
             else MessageBox.Show("Can't update programs: not connected to a database.");
         }
 
-        private void updateLabel()
+        private void updateProgramList()
         {
             dataGridView1.AllowUserToAddRows = true;
             dataGridView1.Rows.Clear();
@@ -270,17 +270,16 @@ namespace AppTime
                     MessageBox.Show("Successfully created new database.");
                 }
                 if (receiveSuccessMessage) MessageBox.Show("Sucessfully connected to SQLite database.");
-                updateLabel();
+                updateProgramList();
             }
             else MessageBox.Show("Database doesn't exist, unable to connect.");
         }
 
-        private void loadDatabase()
+        private void loadDb()
         {
             if (dbConnected)
             {
-                string stm = "select * from programs";
-                using (SQLiteCommand cmd = new SQLiteCommand(stm, dbConnection))
+                using (SQLiteCommand cmd = new SQLiteCommand("select * from programs", dbConnection))
                 {
                     using (SQLiteDataReader reader = cmd.ExecuteReader())
                     {
@@ -297,7 +296,34 @@ namespace AppTime
                         }
                     }
                 }
-                updateLabel();
+                updateProgramList();
+
+                using (SQLiteCommand cmd = new SQLiteCommand("SELECT settingstate FROM config WHERE settingkey='showPaths'", dbConnection))
+                {
+                    if (Convert.ToInt32(cmd.ExecuteScalar()) == 0) changeSetting("showPaths", false);
+                    else changeSetting("showPaths", true);
+
+                    cmd.CommandText = "SELECT settingstate FROM config WHERE settingkey='minimizeToTray'";
+                    if (Convert.ToInt32(cmd.ExecuteScalar()) == 0) minimizeToTray = false;
+                    else minimizeToTray = true;
+
+                    cmd.CommandText = "SELECT settingvalue FROM config WHERE settingkey='column0Width';";
+                    dataGridView1.Columns[0].Width = Convert.ToInt32(cmd.ExecuteScalar());
+                    cmd.CommandText = "SELECT settingvalue FROM config WHERE settingkey='column1Width';";
+                    dataGridView1.Columns[1].Width = Convert.ToInt32(cmd.ExecuteScalar());
+                    cmd.CommandText = "SELECT settingvalue FROM config WHERE settingkey='column2Width';";
+                    dataGridView1.Columns[2].Width = Convert.ToInt32(cmd.ExecuteScalar());
+                    cmd.CommandText = "SELECT settingvalue FROM config WHERE settingkey='column3Width';";
+                    dataGridView1.Columns[3].Width = Convert.ToInt32(cmd.ExecuteScalar());
+                    cmd.CommandText = "SELECT settingvalue FROM config WHERE settingkey='column4Width';";
+                    dataGridView1.Columns[4].Width = Convert.ToInt32(cmd.ExecuteScalar());
+                    cmd.CommandText = "SELECT settingvalue FROM config WHERE settingkey='column5Width';";
+                    dataGridView1.Columns[5].Width = Convert.ToInt32(cmd.ExecuteScalar());
+                    cmd.CommandText = "SELECT settingvalue FROM config WHERE settingkey='formWidth';";
+                    this.Width = Convert.ToInt32(cmd.ExecuteScalar());
+                    cmd.CommandText = "SELECT settingvalue FROM config WHERE settingkey='formHeight';";
+                    this.Height = Convert.ToInt32(cmd.ExecuteScalar());
+                }
             }
             else MessageBox.Show("Can't load programs: not connected to a database.");
         }
@@ -332,7 +358,7 @@ namespace AppTime
                     item.lastTimeRun = DateTime.Now;
                 }
             }
-            updateLabel();
+            updateProgramList();
         }
 
         private void automaticUpdateTimer_Tick(object sender, EventArgs e)
@@ -340,46 +366,13 @@ namespace AppTime
             updateDb(false, true);
         }
         
-        public void loadSettings()
-        {
-            if (dbConnected)
-            {
-                using (SQLiteCommand cmd = new SQLiteCommand("SELECT settingstate FROM config WHERE settingkey='showPaths'", dbConnection))
-                {
-                    if (Convert.ToInt32(cmd.ExecuteScalar()) == 0) changeSetting("showPaths", false);
-                    else changeSetting("showPaths", true);
-
-                    cmd.CommandText = "SELECT settingstate FROM config WHERE settingkey='minimizeToTray'";
-                    if (Convert.ToInt32(cmd.ExecuteScalar()) == 0) minimizeToTray = false;
-                    else minimizeToTray = true;
-
-                    cmd.CommandText = "SELECT settingvalue FROM config WHERE settingkey='column0Width';";
-                    dataGridView1.Columns[0].Width = Convert.ToInt32(cmd.ExecuteScalar());
-                    cmd.CommandText = "SELECT settingvalue FROM config WHERE settingkey='column1Width';";
-                    dataGridView1.Columns[1].Width = Convert.ToInt32(cmd.ExecuteScalar());
-                    cmd.CommandText = "SELECT settingvalue FROM config WHERE settingkey='column2Width';";
-                    dataGridView1.Columns[2].Width = Convert.ToInt32(cmd.ExecuteScalar());
-                    cmd.CommandText = "SELECT settingvalue FROM config WHERE settingkey='column3Width';";
-                    dataGridView1.Columns[3].Width = Convert.ToInt32(cmd.ExecuteScalar());
-                    cmd.CommandText = "SELECT settingvalue FROM config WHERE settingkey='column4Width';";
-                    dataGridView1.Columns[4].Width = Convert.ToInt32(cmd.ExecuteScalar());
-                    cmd.CommandText = "SELECT settingvalue FROM config WHERE settingkey='column5Width';";
-                    dataGridView1.Columns[5].Width = Convert.ToInt32(cmd.ExecuteScalar());
-                    cmd.CommandText = "SELECT settingvalue FROM config WHERE settingkey='formWidth';";
-                    this.Width = Convert.ToInt32(cmd.ExecuteScalar());
-                    cmd.CommandText = "SELECT settingvalue FROM config WHERE settingkey='formHeight';";
-                    this.Height = Convert.ToInt32(cmd.ExecuteScalar());
-                }
-            }
-        }
-
         public void changeSetting(string setting, bool val)
         {
             if(setting == "showPaths")
             {
                 showPaths = val;
                 dataGridView1.Columns[5].Visible = val;
-                updateLabel();
+                updateProgramList();
             }
             else if (setting == "minimizeToTray")
             {
@@ -464,9 +457,8 @@ namespace AppTime
                 dbExist = true;
                 databaseAvailableLabel.Visible = false;
                 connectDb(false, true);
-                loadSettings();
-                loadDatabase();
-                updateLabel();
+                loadDb();
+                updateProgramList();
                 MessageBox.Show("Successfully imported database.");
             }
             else MessageBox.Show("Please select a valid databank.");
@@ -483,7 +475,7 @@ namespace AppTime
                     if (program.friendlyName == null) program.friendlyName = program.Name;
                 }
             }
-            updateLabel();
+            updateProgramList();
         }
     }
 
