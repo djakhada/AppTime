@@ -13,6 +13,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Runtime.InteropServices;
+using System.Security.Principal;
 
 namespace AppTime
 {
@@ -36,9 +37,20 @@ namespace AppTime
         [DllImport("user32.dll", CharSet = CharSet.Auto, ExactSpelling = true)]
         private static extern IntPtr GetForegroundWindow();
 
+
+
         public Form1()
         {
             InitializeComponent();
+
+            bool isElevated;
+            using (WindowsIdentity identity = WindowsIdentity.GetCurrent())
+            {
+                WindowsPrincipal principal = new WindowsPrincipal(identity);
+                isElevated = principal.IsInRole(WindowsBuiltInRole.Administrator);
+            }
+
+            if (!isElevated) MessageBox.Show("Program not run as administrator.\nIt is highly encouraged that you run this program as an administrator as you might encounter errors without the necessary permissions.");
 
             //Registry
             using (RegistryKey Key = Registry.CurrentUser.OpenSubKey(@"SOFTWARE\sinnzrAppTime\"))
