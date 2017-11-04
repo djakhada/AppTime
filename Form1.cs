@@ -402,15 +402,18 @@ namespace AppTime
         {
             foreach (TrackedProgram item in Programs)
             {
-                var activatedHandle = GetForegroundWindow();
-                Process[] processes = Process.GetProcessesByName(Path.GetFileNameWithoutExtension(item.Path));
-                if (processes.Length > 0)
-                { 
-                    item.runtime++;
-                    item.lastTimeRun = DateTime.Now;
-                    if(processes.Any(p => p.MainWindowHandle == activatedHandle || p.Handle == activatedHandle))
+                if (processIsRunning(item.Path))
+                {
+                    var activatedHandle = GetForegroundWindow();
+                    Process[] processes = Process.GetProcessesByName(Path.GetFileNameWithoutExtension(item.Path));
+                    if (processes.Length > 0)
                     {
-                        item.activeRuntime++;
+                        item.runtime++;
+                        item.lastTimeRun = DateTime.Now;
+                        if (processes.Any(p => p.MainWindowHandle == activatedHandle || p.Handle == activatedHandle))
+                        {
+                            item.activeRuntime++;
+                        }
                     }
                 }
             }
