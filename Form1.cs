@@ -29,6 +29,7 @@ namespace AppTime
         bool dbExist = false;
 
         //Settings   
+        public static bool isElevated;
         SettingsForm settingsForm = new SettingsForm();
         public static bool showPaths;
         public static bool minimizeToTray;
@@ -43,7 +44,6 @@ namespace AppTime
         {
             InitializeComponent();
 
-            bool isElevated;
             using (WindowsIdentity identity = WindowsIdentity.GetCurrent())
             {
                 WindowsPrincipal principal = new WindowsPrincipal(identity);
@@ -51,7 +51,7 @@ namespace AppTime
             }
 
             if (!isElevated) MessageBox.Show("Program not run as administrator.\nIt is highly encouraged that you run this program as an administrator as you might encounter errors without the necessary permissions.");
-
+            else this.Text = "AppTime (Elevated)";
             //Registry
             using (RegistryKey Key = Registry.CurrentUser.OpenSubKey(@"SOFTWARE\sinnzrAppTime\"))
                 if (Key != null)
@@ -95,7 +95,8 @@ namespace AppTime
             }
             else if (e.ClickedItem.Text == "Select from list of currently running processes...")
             {
-                new ProcessForm().Show();
+                if (isElevated) new ProcessForm().Show();
+                else MessageBox.Show("Application not run as administrator. List of processes not available.");
             }
         }
 
@@ -106,7 +107,7 @@ namespace AppTime
             sfd.FileName = "AppTime.sqlite";
             if (sfd.ShowDialog() == DialogResult.OK)
             {
-                closeDb(true);
+                closeDb(true, true);
                 if (File.Exists(sfd.FileName)) File.Delete(sfd.FileName);
                 dbLoc = sfd.FileName;
                 using (RegistryKey Key = Registry.CurrentUser.OpenSubKey(@"SOFTWARE\sinnzrAppTime\", true))
@@ -157,12 +158,14 @@ namespace AppTime
                     if (friendlyName == null) friendlyName = name;
                 }
                 else friendlyName = name;
-                SQLiteCommand cmd = new SQLiteCommand("insert into programs (name, friendlyName, path, timeAdded) VALUES (@name, @friendlyName, @path, @timeAdded);", dbConnection);
-                cmd.Parameters.AddWithValue("@name", name);
-                cmd.Parameters.AddWithValue("@friendlyName", friendlyName);
-                cmd.Parameters.AddWithValue("@path", path);
-                cmd.Parameters.AddWithValue("@timeAdded", DateTime.Now);
-                cmd.ExecuteNonQuery();
+                using (SQLiteCommand cmd = new SQLiteCommand("insert into programs (name, friendlyName, path, timeAdded) VALUES (@name, @friendlyName, @path, @timeAdded);", dbConnection))
+                {
+                    cmd.Parameters.AddWithValue("@name", name);
+                    cmd.Parameters.AddWithValue("@friendlyName", friendlyName);
+                    cmd.Parameters.AddWithValue("@path", path);
+                    cmd.Parameters.AddWithValue("@timeAdded", DateTime.Now);
+                    cmd.ExecuteNonQuery();
+                }
 
                 TrackedProgram p = new TrackedProgram(path, name, friendlyName, 0);
                 Programs.Add(p);
@@ -175,10 +178,12 @@ namespace AppTime
         {
             if (dbConnected)
             {
-                SQLiteCommand cmd = new SQLiteCommand("DELETE FROM programs WHERE name=@name AND path=@path", dbConnection);
-                cmd.Parameters.AddWithValue("@name", Programs[id].Name);
-                cmd.Parameters.AddWithValue("@path", Programs[id].Path);
-                cmd.ExecuteNonQuery();
+                using (SQLiteCommand cmd = new SQLiteCommand("DELETE FROM programs WHERE name=@name AND path=@path", dbConnection))
+                {
+                    cmd.Parameters.AddWithValue("@name", Programs[id].Name);
+                    cmd.Parameters.AddWithValue("@path", Programs[id].Path);
+                    cmd.ExecuteNonQuery();
+                }
                 Programs.RemoveAt(id);
                 updateProgramList();
             }
@@ -189,17 +194,26 @@ namespace AppTime
         {
             if (dbConnected)
             {
+                bool retry;
                 foreach (TrackedProgram item in Programs)
                 {
                     using (SQLiteCommand cmd = new SQLiteCommand("UPDATE programs SET runtime = @runtime, activeRuntime = @activeRuntime, friendlyName = @friendlyName, lastTimeRun = @lastTimeRun WHERE name = @name AND path = @path", dbConnection))
                     {
+                        retry = true;
                         cmd.Parameters.AddWithValue("@runtime", item.runtime);
                         cmd.Parameters.AddWithValue("@activeRuntime", item.activeRuntime);
                         cmd.Parameters.AddWithValue("@friendlyName", item.friendlyName);
                         cmd.Parameters.AddWithValue("@lastTimeRun", item.lastTimeRun);
                         cmd.Parameters.AddWithValue("@name", item.Name);
                         cmd.Parameters.AddWithValue("@path", item.Path);
-                        cmd.ExecuteNonQuery();
+                        while(retry){
+                            try {
+                                cmd.ExecuteNonQuery();
+                                retry = false;
+                            }
+                            catch (IOException) { MessageBox.Show("IOException occured: retrying to update databank."); }
+                        }
+
                     }
                 }
                 int showPathsState;
@@ -222,7 +236,7 @@ namespace AppTime
                                     UPDATE config SET settingvalue=@settingvalue5 WHERE settingkey='column5Width';
                                     UPDATE config SET settingvalue=@settingvalue6 WHERE settingkey='column6Width';
                                     UPDATE config SET settingvalue=@formWidth WHERE settingkey='formWidth';
-                                    UPDATE config SET settingvalue=@formHeight WHERE settingkey='formHeight';";
+                                    UPDATE config SET settingvalue=@formHeight WHERE settingkey='formHeight'";
                     cmd.Parameters.AddWithValue("@showPathState", showPathsState);
                     cmd.Parameters.AddWithValue("@minimizeToTrayState", minimizeToTrayState);
                     cmd.Parameters.AddWithValue("@settingvalue0", dataGridView1.Columns[0].Width);
@@ -232,9 +246,18 @@ namespace AppTime
                     cmd.Parameters.AddWithValue("@settingvalue4", dataGridView1.Columns[4].Width);
                     cmd.Parameters.AddWithValue("@settingvalue5", dataGridView1.Columns[5].Width);
                     cmd.Parameters.AddWithValue("@settingvalue6", dataGridView1.Columns[6].Width);
-                    cmd.Parameters.AddWithValue("@formWidth", this.Width);
-                    cmd.Parameters.AddWithValue("@formHeight", this.Height);
-                    cmd.ExecuteNonQuery();
+                    cmd.Parameters.AddWithValue("@formWidth", Width);
+                    cmd.Parameters.AddWithValue("@formHeight", Height);
+                    retry = true;
+                    while (retry)
+                    {
+                        try
+                        {
+                            cmd.ExecuteNonQuery();
+                            retry = false;
+                        }
+                        catch (IOException) { MessageBox.Show("IOException occured: retrying to update databank."); }
+                    }
                 }
 
                 if (receiveSuccessMessage) MessageBox.Show("Successfully updated database.");
@@ -336,6 +359,7 @@ namespace AppTime
                             tp.Path = reader["path"].ToString();
                             tp.Name = reader["name"].ToString();
                             tp.friendlyName = reader["friendlyName"].ToString();
+                            if (tp.friendlyName == "") tp.friendlyName = tp.Name;
                             tp.runtime = (int)reader["runtime"];
                             tp.activeRuntime = (int)reader["activeRuntime"];
                             tp.lastTimeRun = reader["lastTimeRun"] as DateTime? ?? default(DateTime);
@@ -370,9 +394,11 @@ namespace AppTime
                     cmd.CommandText = "SELECT settingvalue FROM config WHERE settingkey='column6Width';";
                     dataGridView1.Columns[6].Width = Convert.ToInt32(cmd.ExecuteScalar());
                     cmd.CommandText = "SELECT settingvalue FROM config WHERE settingkey='formWidth';";
-                    this.Width = Convert.ToInt32(cmd.ExecuteScalar());
+                    int width = Convert.ToInt32(cmd.ExecuteScalar());
                     cmd.CommandText = "SELECT settingvalue FROM config WHERE settingkey='formHeight';";
-                    this.Height = Convert.ToInt32(cmd.ExecuteScalar());
+                    int height = Convert.ToInt32(cmd.ExecuteScalar());
+
+                    this.Size = new Size(width, height);
                 }
             }
             else MessageBox.Show("Can't load programs: not connected to a database.");
@@ -410,7 +436,7 @@ namespace AppTime
                     {
                         item.runtime++;
                         item.lastTimeRun = DateTime.Now;
-                        if (processes.Any(p => p.MainWindowHandle == activatedHandle || p.Handle == activatedHandle))
+                        if (processes.Any(p => p.MainWindowHandle == activatedHandle))
                         {
                             item.activeRuntime++;
                         }
@@ -441,15 +467,25 @@ namespace AppTime
 
         private void Form1_FormClosing(object sender, FormClosingEventArgs e)
         {
-            closeDb(false);
-            Application.Exit();
+            DialogResult dialogResult = MessageBox.Show("Do you want to save your databank before exiting?","Save", MessageBoxButtons.YesNoCancel);
+            if(dialogResult == DialogResult.Yes)
+            {
+                closeDb(true, false);
+                e.Cancel = false;
+            }
+            else if(dialogResult == DialogResult.No)
+            {
+                closeDb(false, false);
+                e.Cancel = false;
+            }
+            else if(dialogResult == DialogResult.Cancel) e.Cancel = true;
         }
 
-        private void closeDb(bool runGC)
+        private void closeDb(bool save, bool runGC)
         {
             if (dbConnected)
             {
-                updateDb(false, true);
+                if(save) updateDb(false, true);
                 dbConnection.Close();
                 dbConnected = false;
                 Programs.Clear();
@@ -508,7 +544,7 @@ namespace AppTime
             ofd.Filter = "SQLite Databank (*.sqlite)|*.sqlite|All files (*.*)|*.*";
             if (ofd.ShowDialog() == DialogResult.OK)
             {
-                if (dbConnected) closeDb(false);
+                if (dbConnected) closeDb(true, false);
 
                 dbLoc = ofd.FileName;
                 using (RegistryKey SubKey = Registry.CurrentUser.CreateSubKey(@"SOFTWARE\sinnzrAppTime"))
@@ -536,8 +572,6 @@ namespace AppTime
             }
             updateProgramList();
         }
-
-        
     }
 
     class TrackedProgram
@@ -547,8 +581,8 @@ namespace AppTime
         public string friendlyName;
         public int runtime = 0; //in minutes
         public int activeRuntime = 0;
-        public DateTime lastTimeRun;// = new DateTime(2017, 1, 1, 1, 1, 1, 1);
-        public DateTime timeAdded = DateTime.Now;// = DateTime.Now;
+        public DateTime lastTimeRun;
+        public DateTime timeAdded = DateTime.Now;
         public TrackedProgram(string selectedPath = "None Given", string selectedName = "None Given", string selectedFriendlyName = "None Given", int selectedRuntime = 0, int selectedactiveRuntime = 0, DateTime? selectedTimeAdded = null, DateTime? selectedLastTimeRun = null)
         {
             activeRuntime = selectedactiveRuntime;
